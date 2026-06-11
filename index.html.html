@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Elo'nun Matematik Takibi</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+  :root {
+    --bg-deep: #080d14;
+    --bg-card: #0e1623;
+    --bg-card2: #111e2e;
+    --border: #1a2e45;
+    --green-bright: #22d97a;
+    --green-mid: #16a85a;
+    --green-dim: #0d6b3a;
+    --green-glow: rgba(34, 217, 122, 0.15);
+    --blue-bright: #3b9eff;
+    --blue-mid: #1a6fd4;
+    --blue-dim: #0f3e7a;
+    --blue-glow: rgba(59, 158, 255, 0.12);
+    --text-main: #e8f4ff;
+    --text-muted: #5a7fa0;
+    --text-dim: #3a5a78;
+    --yellow-acc: #f5c842;
+    --red-acc: #ff5a6e;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg-deep);
+    font-family: 'Inter', sans-serif;
+    color: var(--text-main);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    top: -200px; left: 50%;
+    transform: translateX(-50%);
+    width: 600px; height: 400px;
+    background: radial-gradient(ellipse, rgba(34,217,122,0.07) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .screen { display: none; width: 100%; max-width: 400px; }
+  .screen.active { display: flex; flex-direction: column; gap: 16px; }
+
+  /* CARD */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 28px 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(59,158,255,0.4), transparent);
+  }
+
+  /* WELCOME SCREEN */
+  .welcome-header {
+    text-align: center;
+    padding: 8px 0 4px;
+  }
+  .welcome-emoji { font-size: 48px; margin-bottom: 12px; }
+  .welcome-title {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--green-bright);
+    margin-bottom: 10px;
+  }
+  .welcome-message {
+    font-size: 22px;
+    font-weight: 800;
+    line-height: 1.3;
+    color: var(--text-main);
+    margin-bottom: 6px;
+  }
+  .welcome-message span { color: var(--green-bright); }
+  .welcome-sub {
+    font-size: 14px;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  /* TODAY STATS MINI */
+  .today-mini {
+    display: flex;
+    gap: 10px;
+  }
+  .mini-stat {
+    flex: 1;
+    background: var(--bg-card2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px 12px;
+    text-align: center;
+  }
+  .mini-stat .val {
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--green-bright);
+  }
+  .mini-stat .lbl {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 500;
+    margin-top: 2px;
+  }
+
+  /* BUTTONS */
+  .btn {
+    width: 100%;
+    padding: 16px 20px;
+    border-radius: 14px;
+    border: none;
+    font-family: 'Inter', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    letter-spacing: 0.01em;
+  }
+  .btn:active { transform: scale(0.97); }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--green-mid), var(--green-bright));
+    color: #05120a;
+    box-shadow: 0 4px 20px rgba(34,217,122,0.25);
+  }
+  .btn-primary:hover { box-shadow: 0 6px 28px rgba(34,217,122,0.38); }
+
+  .btn-secondary {
+    background: var(--bg-card2);
+    border: 1px solid var(--border);
+    color: var(--text-main);
+  }
+  .btn-secondary:hover { border-color: var(--blue-mid); }
+
+  .btn-outline {
+    background: transparent;
+    border: 1px solid var(--green-dim);
+    color: var(--green-bright);
+  }
+
+  /* SECTION LABEL */
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+
+  /* GOAL SCREEN */
+  .goal-title {
+    text-align: center;
+    font-size: 20px;
+    font-weight: 800;
+    margin-bottom: 6px;
+  }
+  .goal-sub {
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+  }
+  .goal-input-wrap { position: relative; margin-bottom: 8px; }
+  .goal-input {
+    width: 100%;
+    background: var(--bg-deep);
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+    font-family: 'Inter', sans-serif;
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--text-main);
+    text-align: center;
+    outline: none;
+    transition: border-color 0.2s;
+    -moz-appearance: textfield;
+  }
+  .goal-input::-webkit-outer-spin-button,
+  .goal-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .goal-input:focus { border-color: var(--green-mid); }
+  .goal-hint {
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 20px;
+  }
+
+  /* PROGRESS BAR */
+  .progress-wrap {
+    background: var(--bg-deep);
+    border-radius: 8px;
+    height: 8px;
+    overflow: hidden;
+    margin-bottom: 6px;
+  }
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--green-dim), var(--green-bright));
+    border-radius: 8px;
+    transition: width 0.5s cubic-bezier(0.34,1.56,0.64,1);
+    position: relative;
+  }
+  .progress-bar::after {
+    content: '';
+    position: absolute;
+    right: 0; top: 0; bottom: 0; width: 12px;
+    background: rgba(255,255,255,0.3);
+    filter: blur(4px);
+  }
+  .progress-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .progress-labels .cur { color: var(--green-bright); }
+  .progress-labels .goal { color: var(--text-muted); }
+
+  /* CHOICE CARDS */
+  .choice-header {
+    text-align: center;
+    margin-bottom: 4px;
+  }
+  .choice-header .q-num {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+  .choice-header .q-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text-main);
+  }
+
+  .choice-btn {
+    width: 100%;
+    background: var(--bg-card2);
+    border: 1.5px solid var(--border);
+    border-radius: 14px;
+    padding: 16px 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    font-family: 'Inter', sans-serif;
+    text-align: left;
+    margin-bottom: 10px;
+  }
+  .choice-btn:last-child { margin-bottom: 0; }
+  .choice-btn:active { transform: scale(0.98); }
+  .choice-btn:hover { border-color: var(--blue-mid); background: rgba(59,158,255,0.05); }
+
+  .choice-icon { font-size: 22px; flex-shrink: 0; }
+  .choice-text { flex: 1; }
+  .choice-text .main { font-size: 14px; font-weight: 700; color: var(--text-main); }
+  .choice-text .sub { font-size: 12px; color: var(--text-muted); font-weight: 400; margin-top: 2px; }
+  .choice-pts {
+    font-size: 13px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+  .pts-3 { background: rgba(34,217,122,0.15); color: var(--green-bright); }
+  .pts-1 { background: rgba(59,158,255,0.15); color: var(--blue-bright); }
+  .pts-0 { background: rgba(90,127,160,0.15); color: var(--text-muted); }
+
+  /* FEEDBACK TOAST */
+  .feedback-toast {
+    position: fixed;
+    bottom: 32px; left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--bg-card);
+    border: 1px solid var(--green-dim);
+    border-radius: 14px;
+    padding: 14px 24px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-main);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1), opacity 0.3s;
+    opacity: 0;
+    z-index: 100;
+    text-align: center;
+    max-width: 320px;
+    width: calc(100% - 32px);
+  }
+  .feedback-toast.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+
+  /* CELEBRATION SCREEN */
+  .celebrate-card {
+    text-align: center;
+    padding: 40px 24px;
+  }
+  .celebrate-emoji { font-size: 72px; margin-bottom: 16px; display: block; }
+  .celebrate-title {
+    font-size: 18px;
+    font-weight: 800;
+    line-height: 1.4;
+    margin-bottom: 12px;
+    color: var(--green-bright);
+  }
+  .celebrate-sub { font-size: 14px; color: var(--text-muted); margin-bottom: 24px; }
+
+  /* STATS SCREEN */
+  .stats-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+  .stats-header h2 { font-size: 18px; font-weight: 800; }
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+  .stat-box {
+    background: var(--bg-card2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px 14px;
+  }
+  .stat-box .s-val {
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--green-bright);
+  }
+  .stat-box .s-val.blue { color: var(--blue-bright); }
+  .stat-box .s-val.yellow { color: var(--yellow-acc); }
+  .stat-box .s-val.red { color: var(--red-acc); }
+  .stat-box .s-lbl {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 500;
+    margin-top: 3px;
+  }
+
+  .history-list { display: flex; flex-direction: column; gap: 8px; }
+  .history-item {
+    background: var(--bg-card2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .history-date { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+  .history-pts { font-size: 14px; font-weight: 700; color: var(--green-bright); }
+  .history-qs { font-size: 12px; color: var(--text-muted); }
+
+  .back-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 0;
+    margin-bottom: 4px;
+  }
+  .back-btn:hover { color: var(--text-main); }
+
+  /* TIMER */
+  .timer-badge {
+    background: var(--bg-deep);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+  }
+
+  /* STARS ANIMATION */
+  @keyframes floatUp {
+    0% { transform: translateY(0) scale(0.5); opacity: 1; }
+    100% { transform: translateY(-80px) scale(1.2); opacity: 0; }
+  }
+  .float-pts {
+    position: fixed;
+    font-size: 20px;
+    font-weight: 900;
+    color: var(--green-bright);
+    pointer-events: none;
+    animation: floatUp 0.8s ease-out forwards;
+    z-index: 200;
+  }
+  .float-pts.blue { color: var(--blue-bright); }
+
+  /* STREAK */
+  .streak-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(245,200,66,0.12);
+    border: 1px solid rgba(245,200,66,0.25);
+    border-radius: 20px;
+    padding: 5px 12px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--yellow-acc);
+  }
+
+  .empty-history {
+    text-align: center;
+    padding: 24px;
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+
+  @keyframes pulse-green {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(34,217,122,0.4); }
+    50% { box-shadow: 0 0 0 12px rgba(34,217,122,0); }
+  }
+  .btn-primary { animation: pulse-green 2.5s infinite; }
+</style>
+</head>
+<body>
+
+<!-- WELCOME SCREEN -->
+<div class="screen active" id="screen-welcome">
+  <div class="card welcome-header">
+    <div class="welcome-emoji">🧮</div>
+    <div class="welcome-title">Matematik Takip</div>
+    <div class="welcome-message">Hadi bakalım <span>Elom</span>,<br>senden minimum<br>200 puan bekliyorum!</div>
+    <div style="margin-top:12px;">
+      <div id="welcome-streak" style="justify-content:center;display:flex;"></div>
+    </div>
+  </div>
+
+  <div class="today-mini">
+    <div class="mini-stat">
+      <div class="val" id="welcome-pts">0</div>
+      <div class="lbl">Bugünkü puan</div>
+    </div>
+    <div class="mini-stat">
+      <div class="val" id="welcome-qs">0</div>
+      <div class="lbl">Soru çözüldü</div>
+    </div>
+    <div class="mini-stat">
+      <div class="val" id="welcome-time">0s</div>
+      <div class="lbl">Çalışma süresi</div>
+    </div>
+  </div>
+
+  <button class="btn btn-primary" onclick="goTo('screen-goal')">
+    ✏️ Çözmeye Başla
+  </button>
+  <button class="btn btn-secondary" id="btn-continue" onclick="continueSession()" style="display:none;">
+    ▶️ Çözmeye Devam Et
+  </button>
+  <button class="btn btn-outline" onclick="goTo('screen-stats')">
+    📊 İstatistikler
+  </button>
+</div>
+
+<!-- GOAL SCREEN -->
+<div class="screen" id="screen-goal">
+  <button class="back-btn" onclick="goTo('screen-welcome')">← Geri</button>
+  <div class="card">
+    <div style="text-align:center;font-size:32px;margin-bottom:12px;">🎯</div>
+    <div class="goal-title">Hedef Belirle</div>
+    <div class="goal-sub">Bugün kaç puana ulaşmak istiyorsun?<br>Her doğru soru 3 puan kazandırır.</div>
+    <div class="goal-input-wrap">
+      <input type="number" class="goal-input" id="goal-input" min="1" max="9999" placeholder="örn: 30">
+    </div>
+    <div class="goal-hint">1 – 9999 arası bir hedef gir</div>
+    <button class="btn btn-primary" onclick="startSession()">Başla →</button>
+  </div>
+</div>
+
+<!-- SOLVE SCREEN -->
+<div class="screen" id="screen-solve">
+  <div class="card" style="padding:16px 20px;">
+    <div class="progress-labels" style="margin-bottom:8px;">
+      <span class="cur" id="solve-pts-display">0 puan</span>
+      <span class="goal" id="solve-goal-display">Hedef: 0</span>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-bar" id="solve-progress" style="width:0%"></div>
+    </div>
+    <div style="text-align:right;margin-top:6px;">
+      <span class="timer-badge" id="solve-timer">00:00</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="choice-header">
+      <div class="q-num" id="solve-q-num">1. soru</div>
+      <div class="q-title">Kitabındaki soruyu çöz,<br>sonra aşağıdan durumunu işaretle.</div>
+    </div>
+  </div>
+
+  <div>
+    <div class="choice-btn" onclick="markAnswer(3, this)">
+      <span class="choice-icon">✅</span>
+      <div class="choice-text">
+        <div class="main">Çözdüm</div>
+        <div class="sub">Cevabı doğru buldum</div>
+      </div>
+      <span class="choice-pts pts-3">+3</span>
+    </div>
+    <div class="choice-btn" onclick="markAnswer(1, this)">
+      <span class="choice-icon">🤔</span>
+      <div class="choice-text">
+        <div class="main">Denedim ama bulamadım</div>
+        <div class="sub">Cevabı yanlış buldum ya da yarım kaldı</div>
+      </div>
+      <span class="choice-pts pts-1">+1</span>
+    </div>
+    <div class="choice-btn" onclick="markAnswer(0, this)">
+      <span class="choice-icon">😐</span>
+      <div class="choice-text">
+        <div class="main">Kalem oynatamadım</div>
+        <div class="sub">Nereden başlayacağımı bilemedim</div>
+      </div>
+      <span class="choice-pts pts-0">+0</span>
+    </div>
+  </div>
+
+  <button class="btn btn-secondary" onclick="goTo('screen-welcome')">← Ana menüye dön (ilerleme korunur)</button>
+</div>
+
+<!-- CELEBRATE SCREEN -->
+<div class="screen" id="screen-celebrate">
+  <div class="card celebrate-card">
+    <span class="celebrate-emoji">🌟</span>
+    <div class="celebrate-title">Aferin be Elom,<br>yapabiliyorsun işte!<br>Hiç korkulacak bir şey yokmuş 🥰</div>
+    <div class="celebrate-sub" id="celebrate-stats"></div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">
+      <button class="btn btn-primary" onclick="keepGoing()">Devam et 💪</button>
+      <button class="btn btn-secondary" onclick="goTo('screen-welcome')">Ana menüye dön</button>
+    </div>
+  </div>
+</div>
+
+<!-- STATS SCREEN -->
+<div class="screen" id="screen-stats">
+  <button class="back-btn" onclick="goTo('screen-welcome')">← Geri</button>
+
+  <div class="card">
+    <div class="stats-header">
+      <span style="font-size:22px;">📊</span>
+      <h2>İstatistikler</h2>
+    </div>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:2px;" id="stats-date-label"></div>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-box">
+      <div class="s-val" id="stat-today-pts">0</div>
+      <div class="s-lbl">Bugünkü puan</div>
+    </div>
+    <div class="stat-box">
+      <div class="s-val blue" id="stat-today-qs">0</div>
+      <div class="s-lbl">Bugün çözülen soru</div>
+    </div>
+    <div class="stat-box">
+      <div class="s-val yellow" id="stat-total-pts">0</div>
+      <div class="s-lbl">Toplam puan</div>
+    </div>
+    <div class="stat-box">
+      <div class="s-val" id="stat-total-qs">0</div>
+      <div class="s-lbl">Toplam soru</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-label" style="margin-bottom:12px;">Geçmiş günler</div>
+    <div class="history-list" id="history-list">
+      <div class="empty-history">Henüz geçmiş gün yok 🌱</div>
+    </div>
+  </div>
+</div>
+
+<!-- FEEDBACK TOAST -->
+<div class="feedback-toast" id="feedback-toast"></div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────
+let state = loadState();
+let sessionGoal = 0;
+let questionCount = 0;
+let timerInterval = null;
+let sessionSeconds = 0;
+let celebrationShown = false;
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem('elo_math');
+    const s = raw ? JSON.parse(raw) : {};
+    return {
+      todayDate: s.todayDate || getTodayStr(),
+      todayPts: s.todayPts || 0,
+      todayQs: s.todayQs || 0,
+      todaySeconds: s.todaySeconds || 0,
+      totalPts: s.totalPts || 0,
+      totalQs: s.totalQs || 0,
+      history: s.history || [],
+      activeGoal: s.activeGoal || 0,
+      activeQCount: s.activeQCount || 0,
+      activeSeconds: s.activeSeconds || 0,
+    };
+  } catch(e) { return defaultState(); }
+}
+
+function defaultState() {
+  return { todayDate: getTodayStr(), todayPts:0, todayQs:0, todaySeconds:0, totalPts:0, totalQs:0, history:[], activeGoal:0, activeQCount:0, activeSeconds:0 };
+}
+
+function saveState() {
+  try { localStorage.setItem('elo_math', JSON.stringify(state)); } catch(e) {}
+}
+
+function getTodayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function checkDayRollover() {
+  const today = getTodayStr();
+  if (state.todayDate !== today) {
+    // Save yesterday to history
+    if (state.todayPts > 0 || state.todayQs > 0) {
+      state.history.unshift({
+        date: state.todayDate,
+        pts: state.todayPts,
+        qs: state.todayQs,
+        seconds: state.todaySeconds
+      });
+      if (state.history.length > 30) state.history.pop();
+    }
+    state.todayDate = today;
+    state.todayPts = 0;
+    state.todayQs = 0;
+    state.todaySeconds = 0;
+    state.activeGoal = 0;
+    state.activeQCount = 0;
+    state.activeSeconds = 0;
+    saveState();
+  }
+}
+
+// ─── NAVIGATION ──────────────────────────────────────────
+function goTo(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if (id === 'screen-welcome') updateWelcome();
+  if (id === 'screen-stats') updateStats();
+  if (id === 'screen-solve') updateSolveUI();
+}
+
+function updateWelcome() {
+  checkDayRollover();
+  document.getElementById('welcome-pts').textContent = state.todayPts;
+  document.getElementById('welcome-qs').textContent = state.todayQs;
+  document.getElementById('welcome-time').textContent = formatTime(state.todaySeconds + sessionSeconds);
+
+  const continueBtn = document.getElementById('btn-continue');
+  if (state.activeGoal > 0) {
+    continueBtn.style.display = 'flex';
+  } else {
+    continueBtn.style.display = 'none';
+  }
+
+  // Streak
+  const streakEl = document.getElementById('welcome-streak');
+  const streak = calcStreak();
+  if (streak >= 2) {
+    streakEl.innerHTML = `<span class="streak-pill">🔥 ${streak} günlük seri!</span>`;
+  } else {
+    streakEl.innerHTML = '';
+  }
+}
+
+function calcStreak() {
+  let streak = 0;
+  const today = getTodayStr();
+  const all = [];
+  if (state.todayPts > 0) all.push(state.todayDate);
+  state.history.forEach(h => all.push(h.date));
+  
+  let check = new Date();
+  for (let i = 0; i < 60; i++) {
+    const d = `${check.getFullYear()}-${String(check.getMonth()+1).padStart(2,'0')}-${String(check.getDate()).padStart(2,'0')}`;
+    if (all.includes(d)) {
+      streak++;
+      check.setDate(check.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+  return streak;
+}
+
+// ─── SESSION ─────────────────────────────────────────────
+function startSession() {
+  const val = parseInt(document.getElementById('goal-input').value);
+  if (!val || val < 1 || val > 9999) {
+    showToast('1 ile 9999 arasında bir hedef gir!', false);
+    return;
+  }
+  sessionGoal = val;
+  questionCount = 1;
+  celebrationShown = false;
+  state.activeGoal = val;
+  state.activeQCount = 0;
+  sessionSeconds = state.activeSeconds || 0;
+  saveState();
+  startTimer();
+  goTo('screen-solve');
+}
+
+function continueSession() {
+  if (!state.activeGoal) return;
+  sessionGoal = state.activeGoal;
+  questionCount = (state.activeQCount || 0) + 1;
+  celebrationShown = false;
+  sessionSeconds = state.activeSeconds || 0;
+  startTimer();
+  goTo('screen-solve');
+}
+
+function startTimer() {
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    sessionSeconds++;
+    state.todaySeconds = (state.todaySeconds || 0);
+    state.activeSeconds = sessionSeconds;
+    saveState();
+    updateTimerDisplay();
+    updateWelcomeMini();
+  }, 1000);
+}
+
+function updateTimerDisplay() {
+  const el = document.getElementById('solve-timer');
+  if (el) el.textContent = formatTime(sessionSeconds);
+}
+
+function updateWelcomeMini() {
+  const el = document.getElementById('welcome-time');
+  if (el) el.textContent = formatTime(state.todaySeconds + sessionSeconds);
+}
+
+function formatTime(secs) {
+  if (secs < 60) return secs + 's';
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  if (m < 60) return `${m}d ${s}s`;
+  const h = Math.floor(m / 60);
+  return `${h}s ${m%60}d`;
+}
+
+function updateSolveUI() {
+  const pct = sessionGoal > 0 ? Math.min(100, (state.todayPts / sessionGoal) * 100) : 0;
+  document.getElementById('solve-progress').style.width = pct + '%';
+  document.getElementById('solve-pts-display').textContent = state.todayPts + ' puan';
+  document.getElementById('solve-goal-display').textContent = 'Hedef: ' + sessionGoal;
+  document.getElementById('solve-q-num').textContent = questionCount + '. soru';
+  updateTimerDisplay();
+}
+
+function markAnswer(pts, el) {
+  // Disable all choice buttons briefly
+  document.querySelectorAll('.choice-btn').forEach(b => b.style.pointerEvents = 'none');
+
+  state.todayPts += pts;
+  state.todayQs += 1;
+  state.totalPts += pts;
+  state.totalQs += 1;
+  state.activeQCount = (state.activeQCount || 0) + 1;
+  questionCount++;
+  saveState();
+
+  // Float pts animation
+  if (pts > 0) spawnFloat(pts, el, pts === 3 ? '' : 'blue');
+
+  // Feedback messages
+  let msg = '';
+  if (pts === 3) msg = 'Aksini beklemiyordum zaten ✅';
+  else if (pts === 1) msg = 'Olur böyle şeyler Elo, sıkma canını 🤍';
+  else msg = 'Konuya bir daha göz gezdir 👀';
+
+  showToast(msg, pts > 0);
+
+  // Update UI
+  updateSolveUI();
+
+  setTimeout(() => {
+    document.querySelectorAll('.choice-btn').forEach(b => b.style.pointerEvents = 'auto');
+    // Check goal reached
+    if (!celebrationShown && state.todayPts >= sessionGoal) {
+      celebrationShown = true;
+      state.activeGoal = 0;
+      state.todaySeconds = (state.todaySeconds || 0) + sessionSeconds;
+      sessionSeconds = 0;
+      if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+      saveState();
+      showCelebration();
+    }
+  }, 800);
+}
+
+function showCelebration() {
+  document.getElementById('celebrate-stats').textContent =
+    `${state.todayPts} puan · ${state.todayQs} soru · bugün`;
+  goTo('screen-celebrate');
+}
+
+function keepGoing() {
+  // Set new higher goal
+  const newGoal = state.todayPts + Math.ceil(sessionGoal * 0.5);
+  sessionGoal = newGoal;
+  state.activeGoal = newGoal;
+  celebrationShown = false;
+  saveState();
+  startTimer();
+  goTo('screen-solve');
+}
+
+// ─── STATS ───────────────────────────────────────────────
+function updateStats() {
+  checkDayRollover();
+  const now = new Date();
+  document.getElementById('stats-date-label').textContent =
+    now.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+  document.getElementById('stat-today-pts').textContent = state.todayPts;
+  document.getElementById('stat-today-qs').textContent = state.todayQs;
+  document.getElementById('stat-total-pts').textContent = state.totalPts;
+  document.getElementById('stat-total-qs').textContent = state.totalQs;
+
+  const list = document.getElementById('history-list');
+  if (!state.history.length) {
+    list.innerHTML = '<div class="empty-history">Henüz geçmiş gün yok 🌱</div>';
+    return;
+  }
+  list.innerHTML = state.history.slice(0, 14).map(h => {
+    const d = new Date(h.date + 'T12:00:00');
+    const label = d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', weekday: 'short' });
+    return `<div class="history-item">
+      <div>
+        <div class="history-date">${label}</div>
+        <div class="history-qs">${h.qs} soru</div>
+      </div>
+      <div class="history-pts">${h.pts} puan</div>
+    </div>`;
+  }).join('');
+}
+
+// ─── TOAST ───────────────────────────────────────────────
+let toastTimeout;
+function showToast(msg, positive = true) {
+  const t = document.getElementById('feedback-toast');
+  t.textContent = msg;
+  t.style.borderColor = positive ? 'var(--green-dim)' : 'var(--red-acc)';
+  t.classList.add('show');
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ─── FLOAT ANIMATION ─────────────────────────────────────
+function spawnFloat(pts, btn, cls) {
+  const el = document.createElement('div');
+  el.className = 'float-pts' + (cls ? ' ' + cls : '');
+  el.textContent = '+' + pts;
+  const r = btn.getBoundingClientRect();
+  el.style.left = (r.right - 30) + 'px';
+  el.style.top = (r.top + window.scrollY) + 'px';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 900);
+}
+
+// ─── MIDNIGHT RESET ──────────────────────────────────────
+function scheduleMidnightCheck() {
+  const now = new Date();
+  const msUntilMidnight = (new Date(now.getFullYear(), now.getMonth(), now.getDate()+1) - now);
+  setTimeout(() => {
+    checkDayRollover();
+    updateWelcome();
+    scheduleMidnightCheck();
+  }, msUntilMidnight + 500);
+}
+
+// ─── INIT ─────────────────────────────────────────────────
+checkDayRollover();
+updateWelcome();
+scheduleMidnightCheck();
+</script>
+</body>
+</html>
